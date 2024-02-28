@@ -20,19 +20,27 @@ class OpenaiClient:
         self.client = OpenAI(api_key=self.api_key)
 
     def chat(self, *args, return_text=False, reduce_length=False, **kwargs):
-        while True:
+        attempts = 0  # Initialize attempt counter
+        while attempts < 3:  # Allow up to 3 attempts
             try:
                 completion = self.client.chat.completions.create(*args, **kwargs, timeout=30)
-                break
+                # If completion is successful, break out of the loop
+                if return_text:
+                    # If return_text is True, simplify the response to just the message content
+                    completion = completion.choices[0].message.content
+                return completion
             except Exception as e:
                 print(str(e))
+                # Check for the specific error related to maximum context length
                 if "This model's maximum context length is" in str(e):
                     print('reduce_length')
                     return 'ERROR::reduce_length'
+                # Increment the attempt counter and wait a bit before retrying
+                attempts += 1
                 time.sleep(0.1)
-        if return_text:
-            completion = completion.choices[0].message.content
-        return completion
+        
+        # If the loop exits without returning, it means all attempts failed
+        return 'ERROR::all_attempts_failed'
 
     def text(self, *args, return_text=False, reduce_length=False, **kwargs):
         while True:
@@ -109,12 +117,7 @@ def run_retriever(topics, searcher, qrels=None, k=100, qid=None):
         rank = 0
         for hit in hits:
             rank += 1
-            content = json.loads(searcher.doc(hit.docid).raw())
-            if 'title' in content:
-                content = 'Title: ' + content['title'] + ' ' + 'Content: ' + content['text']
-            else:
-                content = content['contents']
-            content = ' '.join(content.split())
+            content = searcher.doc(hit.docid).raw()
             ranks[-1]['hits'].append({
                 'content': content,
                 'qid': qid, 'docid': hit.docid, 'rank': rank, 'score': hit.score})
@@ -128,12 +131,7 @@ def run_retriever(topics, searcher, qrels=None, k=100, qid=None):
             rank = 0
             for hit in hits:
                 rank += 1
-                content = json.loads(searcher.doc(hit.docid).raw())
-                if 'title' in content:
-                    content = 'Title: ' + content['title'] + ' ' + 'Content: ' + content['text']
-                else:
-                    content = content['contents']
-                content = ' '.join(content.split())
+                content = searcher.doc(hit.docid).raw()
                 ranks[-1]['hits'].append({
                     'content': content,
                     'qid': qid, 'docid': hit.docid, 'rank': rank, 'score': hit.score})
@@ -152,15 +150,15 @@ def get_post_prompt(query, num):
     return f"Search Query: {query}. \nRank the {num} passages above based on their relevance to the search query. The passages should be listed in descending order using identifiers. The most relevant passages should be listed first. The output format should be [] > [], e.g., [1] > [2]. Only response the ranking results, do not say any word or explain."
 
 
-def create_permutation_instruction(item=None, rank_start=0, rank_end=100, model_name='gpt-3.5-turbo'):
+def create_permutation_instruction(item=None, model_name='gpt-3.5-turbo'):
     query = item['query']
-    num = len(item['hits'][rank_start: rank_end])
+    num = len(item['hits'])
 
     max_length = 300
 
     messages = get_prefix_prompt(query, num)
     rank = 0
-    for hit in item['hits'][rank_start: rank_end]:
+    for hit in item['hits']:
         rank += 1
         content = hit['content']
         content = content.replace('Title: Content: ', '')
@@ -206,7 +204,9 @@ def remove_duplicate(response):
     return new_response
 
 
-def receive_permutation(item, permutation, rank_start=0, rank_end=100):
+def receive_permutation(item, permutation):
+    rank_start = 0
+    rank_end = len(item['hits'])
     response = clean_response(permutation)
     response = [int(x) - 1 for x in response.split()]
     response = remove_duplicate(response)
