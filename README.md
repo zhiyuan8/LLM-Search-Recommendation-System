@@ -149,9 +149,7 @@ Paper :<**[TSRankLLM: A Two-Stage Adaptation of LLMs for Text Ranking](https://a
 # Reference
 
 - https://github.com/frutik/awesome-search
-
-[https://github.com/snexus/llm-search](https://github.com/snexus/llm-search)
-
+- [https://github.com/snexus/llm-search](https://github.com/snexus/llm-search)
 - https://github.com/snexus/llm-search
 - [Retrieval Augmented Generation with Huggingface Transformers and Ray](https://huggingface.co/blog/ray-rag)
 - [https://www.pinecone.io/learn/series/rag/rerankers/](https://www.pinecone.io/learn/series/rag/rerankers/)
